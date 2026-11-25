@@ -42,6 +42,13 @@ jobs:
           pyinstaller --noconfirm --distpath dist/portable --workpath build/portable packaging/ai_animator.spec
           if (!(Test-Path "dist/portable/AI Animator.exe")) { throw "portable exe missing" }
 
+      - name: Make Python unavailable on this (throwaway) build machine
+        shell: pwsh
+        run: |
+          # From here on, the machine looks like a PC that never had Python.
+          Rename-Item C:\hostedtoolcache\windows\Python C:\hostedtoolcache\windows\Python_hidden
+          foreach ($f in "C:\Windows\py.exe","C:\Windows\pyw.exe") { if (Test-Path $f) { Remove-Item $f -Force } }
+
       - name: Self-test both exes (no Python available)
         shell: pwsh
         run: |
