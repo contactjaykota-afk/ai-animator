@@ -98,24 +98,37 @@ def main() -> int:
         rect = wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         ex = ActionExecutor(inp, capture_frame)
-        ex.run("screenshot", {})
-        f = ex.frame
+        time.sleep(1.5)  # let Notepad finish starting
         cx, cy = (rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2 + 40
-        fx, fy = f.to_frame(cx, cy)
-        ex.run("left_click", {"coordinate": [fx, fy]})
-        time.sleep(0.5)
+        for attempt in range(1, 6):  # click, then verify Notepad really has focus (like the agent does)
+            user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            cx, cy = (rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2 + 40
+            ex.run("screenshot", {})
+            f = ex.frame
+            fx, fy = f.to_frame(cx, cy)
+            ex.run("left_click", {"coordinate": [fx, fy]})
+            time.sleep(0.6)
+            if user32.GetForegroundWindow() == hwnd:
+                break
+        else:
+            raise RuntimeError("Notepad never received focus")
         rx, ry = inp.cursor_position()
         assert abs(rx - cx) <= 3 and abs(ry - cy) <= 3, ((rx, ry), (cx, cy))
-        ok("screenshot_and_click", f"frame {f.image.size}, scale {f.scale:.3f}, clicked ({rx},{ry})")
+        ok("screenshot_and_click", f"frame {f.image.size}, scale {f.scale:.3f}, clicked ({rx},{ry}), "
+                                   f"focused after {attempt} click(s)")
 
         # 3. typing + shortcuts, verified through the clipboard
         text = "AI Animator input test 123 - äöü ✓"
         ex.run("type", {"text": text})
-        time.sleep(0.3)
-        ex.run("key", {"text": "ctrl+a"})
-        ex.run("key", {"text": "ctrl+c"})
         time.sleep(0.5)
-        got = clipboard()
+        got = ""
+        for _ in range(10):
+            ex.run("key", {"text": "ctrl+a"})
+            ex.run("key", {"text": "ctrl+c"})
+            time.sleep(0.3)
+            got = clipboard()
+            if got == text:
+                break
         assert got == text, f"clipboard was {got!r}"
         ok("type_and_shortcuts", repr(got))
     finally:
