@@ -2,46 +2,143 @@ name: Windows build
 
 on:
   push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write   # needed only to publish the Release with the two .exe files
 
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      AI_ANIMATOR_HEADLESS: "1"   # build machine has no real desktop: screenshot = warning
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
+
+      - name: Install build dependencies
         run: pip install -r requirements.txt
-      - name: Unit + UI tests
+
+      - name: Unit + UI tests (on Windows)
         run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
-      - name: Build AI Animator.exe
+
+      - name: Build folder version (for the installer)
         run: pyinstaller --noconfirm --clean packaging/ai_animator.spec
-      - name: Self-test the packaged exe (no Python on PATH)
+
+      - name: Build portable single-file AI Animator.exe
         shell: pwsh
         run: |
-          $env:PATH = "C:\Windows\System32;C:\Windows"
-          $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -ArgumentList "--self-test" -Wait -PassThru
-          Get-Content "$env:APPDATA\AI Animator\self_test_report.json" -ErrorAction SilentlyContinue
-          if ($p.ExitCode -ne 0) { exit 1 }
-      - name: Build installer
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss'
-        shell: pwsh
-      - name: Silent install + self-test the installed app + uninstall
+          $env:AIA_ONEFILE = "1"
+          pyinstaller --noconfirm --distpath dist/portable --workpath build/portable packaging/ai_animator.spec
+          if (!(Test-Path "dist/portable/AI Animator.exe")) { throw "portable exe missing" }
+
+      - name: Remove Python from this machine's PATH for all later steps
         shell: pwsh
         run: |
-          Start-Process "dist\AI Animator Setup.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/CURRENTUSER","/TASKS=desktopicon" -Wait
-          $exe = "$env:LOCALAPPDATA\Programs\AI Animator\AI Animator.exe"
-          if (!(Test-Path $exe)) { Write-Error "not installed at $exe"; exit 1 }
-          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { exit 1 }
-          Start-Process "$env:LOCALAPPDATA\Programs\AI Animator\unins000.exe" -ArgumentList "/VERYSILENT" -Wait
+          # Proves the .exe files do not need an installed Python.
+          $clean = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
+          "PATH=$clean" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Remove-Item env:PYTHONPATH -ErrorAction SilentlyContinue
+
+      - name: Self-test both exes (no Python available)
+        shell: pwsh
+        run: |
+          if (Get-Command python -ErrorAction SilentlyContinue) { throw "python still on PATH" }
+          foreach ($exe in @("dist\AI Animator\AI Animator.exe", "dist\portable\AI Animator.exe")) {
+            $rep = Join-Path $env:RUNNER_TEMP ("st_" + [guid]::NewGuid() + ".json")
+            $p = Start-Process -FilePath $exe -ArgumentList "--self-test","--report","`"$rep`"" -Wait -PassThru
+            Write-Host "=== $exe (exit $($p.ExitCode))"; Get-Content $rep
+            if ($p.ExitCode -ne 0) { throw "self-test failed: $exe" }
+          }
+
+      - name: Optional live Claude API test (only if ANTHROPIC_API_KEY secret exists)
+        shell: pwsh
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if (-not $env:ANTHROPIC_API_KEY) { Write-Host "No secret set - skipped (Option A)."; exit 0 }
+          $rep = Join-Path $env:RUNNER_TEMP "st_api.json"
+          $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -ArgumentList "--self-test","--check-api","--report","`"$rep`"" -Wait -PassThru
+          Get-Content $rep
+          if ($p.ExitCode -ne 0) { throw "live API test failed" }
+
+      - name: Launch the real app window and keep it running 20s
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { throw "app exited early with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id -Force
+          $log = "$env:APPDATA\AI Animator\ai_animator.log"
+          Get-Content $log
+          if (!(Select-String -Path $log -Pattern "started" -Quiet)) { throw "no startup line in log" }
+          if (Select-String -Path $log -Pattern "CRITICAL" -Quiet) { throw "crash logged" }
+
+      - name: Build installer (AI Animator Setup.exe)
+        shell: pwsh
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss; if ($LASTEXITCODE) { exit 1 }'
+
+      - name: Install, launch, self-test, uninstall
+        shell: pwsh
+        run: |
+          $setup = "dist\AI Animator Setup.exe"
+          $p = Start-Process $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/TASKS=desktopicon" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          $dir = "$env:LOCALAPPDATA\Programs\AI Animator"
+          $exe = "$dir\AI Animator.exe"
+          $desk = [Environment]::GetFolderPath("Desktop") + "\AI Animator.lnk"
+          $menu = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\AI Animator\AI Animator.lnk"
+          foreach ($f in @($exe, $desk, $menu, "$dir\unins000.exe")) {
+            if (!(Test-Path $f)) { throw "missing after install: $f" }; Write-Host "found $f"
+          }
+          $rep = Join-Path $env:RUNNER_TEMP "st_installed.json"
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test","--report","`"$rep`"" -Wait -PassThru
+          Get-Content $rep
+          if ($p.ExitCode -ne 0) { throw "installed self-test failed" }
+          # launch installed app; it creates the user's projects folder
+          $app = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 15
+          if ($app.HasExited) { throw "installed app exited early" }
+          Stop-Process -Id $app.Id -Force
+          Start-Sleep -Seconds 2
+          $projects = [Environment]::GetFolderPath("MyDocuments") + "\AI Animator Projects"
+          if (!(Test-Path $projects)) { throw "projects folder not created" }
+          "keep me" | Out-File "$projects\user_data_marker.txt"
+          # uninstall
+          $p = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          Start-Sleep -Seconds 5   # uninstaller finishes in a child process
+          foreach ($f in @($exe, $desk, $menu)) { if (Test-Path $f) { throw "still present after uninstall: $f" } }
+          if (!(Test-Path "$projects\user_data_marker.txt")) { throw "uninstall deleted user projects!" }
+          Write-Host "Uninstall removed the app and kept user projects."
+
+      - name: Collect the two deliverables
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory release | Out-Null
+          Copy-Item "dist\portable\AI Animator.exe" "release\AI Animator.exe"
+          Copy-Item "dist\AI Animator Setup.exe" "release\AI Animator Setup.exe"
+          Get-ChildItem release | Format-Table Name, Length
+
       - uses: actions/upload-artifact@v4
         with:
           name: AI-Animator-Windows
-          path: |
-            dist/AI Animator Setup.exe
-            dist/AI Animator/
+          path: release/
+
+      - name: Publish GitHub Release (main branch only)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v0.1.0-build.${{ github.run_number }}"
+          gh release create $tag "release\AI Animator.exe" "release\AI Animator Setup.exe" `
+            --title "AI Animator 0.1.0 (build ${{ github.run_number }})" --prerelease `
+            --notes "Phase 1 build. Every file here passed the automated Windows tests in run ${{ github.run_id }}."

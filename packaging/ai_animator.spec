@@ -1,6 +1,8 @@
-# PyInstaller spec - builds "dist/AI Animator/AI Animator.exe" (one-folder build:
-# starts faster and is less often flagged by antivirus than one-file builds).
+# PyInstaller spec.
+#   default                -> dist/AI Animator/AI Animator.exe   (folder build, used by the installer)
+#   AIA_ONEFILE=1          -> dist/portable/AI Animator.exe     (single portable file)
 # Build:  pyinstaller --noconfirm packaging/ai_animator.spec
+import os
 import sys
 from pathlib import Path
 
@@ -21,12 +23,11 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
-exe = EXE(
-    pyz, a.scripts, [],
-    exclude_binaries=True,
-    name="AI Animator",
-    icon=ICON,
-    console=False,          # no terminal window
-    version=str(ROOT / "packaging" / "version_info.txt") if sys.platform == "win32" else None,
-)
-coll = COLLECT(exe, a.binaries, a.datas, name="AI Animator")
+common = dict(name="AI Animator", icon=ICON, console=False,  # no terminal window
+              version=str(ROOT / "packaging" / "version_info.txt") if sys.platform == "win32" else None)
+
+if os.environ.get("AIA_ONEFILE") == "1":
+    exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], upx=False, **common)
+else:
+    exe = EXE(pyz, a.scripts, [], exclude_binaries=True, **common)
+    coll = COLLECT(exe, a.binaries, a.datas, name="AI Animator")

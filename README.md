@@ -44,6 +44,10 @@ python run.py                 # start the app
 python -m pytest -q           # tests
 python run.py --self-test     # install check (add --check-api to test the key)
 build.bat                     # tests -> AI Animator.exe -> self-test -> Setup.exe
+set AIA_ONEFILE=1 && pyinstaller packaging\ai_animator.spec --distpath dist\portable   # portable single file
 ```
 `build.bat` needs Inno Setup 6 for the installer step. The GitHub Actions workflow in
-`.github/workflows/windows-build.yml` builds and tests both on a clean Windows machine.
+`.github/workflows/windows-build.yml` builds both on a clean Windows machine, then tests:
+no-Python launch, Credential Manager key storage, invalid-key handling, project saving,
+real window launch, install (shortcuts), installed self-test, and uninstall (projects kept).
+Passing builds on `main` are published as a GitHub Release.

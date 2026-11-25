@@ -85,7 +85,9 @@ class Settings:
 class SecretStore:
     """Reads/writes the Anthropic API key in the OS credential vault."""
 
-    def __init__(self, backend=None):
+    def __init__(self, backend=None, service: str = KEYRING_SERVICE, use_env: bool = True):
+        self.service = service
+        self.use_env = use_env
         if backend is None:
             try:
                 import keyring
@@ -97,21 +99,21 @@ class SecretStore:
     def get_api_key(self) -> str | None:
         if self._kr is not None:
             try:
-                key = self._kr.get_password(KEYRING_SERVICE, KEYRING_ANTHROPIC)
+                key = self._kr.get_password(self.service, KEYRING_ANTHROPIC)
                 if key:
                     return key
             except Exception as exc:
                 log.warning("Credential vault unavailable: %s", exc)
-        return os.environ.get("ANTHROPIC_API_KEY") or None
+        return (os.environ.get("ANTHROPIC_API_KEY") or None) if self.use_env else None
 
     def key_source(self) -> str:
         if self._kr is not None:
             try:
-                if self._kr.get_password(KEYRING_SERVICE, KEYRING_ANTHROPIC):
+                if self._kr.get_password(self.service, KEYRING_ANTHROPIC):
                     return "Windows Credential Manager" if sys.platform == "win32" else "system keyring"
             except Exception:
                 pass
-        if os.environ.get("ANTHROPIC_API_KEY"):
+        if self.use_env and os.environ.get("ANTHROPIC_API_KEY"):
             return "ANTHROPIC_API_KEY environment variable"
         return "not set"
 
@@ -121,13 +123,13 @@ class SecretStore:
             raise ValueError("API key is empty")
         if self._kr is None:
             raise RuntimeError("No secure credential store is available on this system.")
-        self._kr.set_password(KEYRING_SERVICE, KEYRING_ANTHROPIC, key)
+        self._kr.set_password(self.service, KEYRING_ANTHROPIC, key)
 
     def clear_api_key(self) -> None:
         if self._kr is None:
             return
         try:
-            self._kr.delete_password(KEYRING_SERVICE, KEYRING_ANTHROPIC)
+            self._kr.delete_password(self.service, KEYRING_ANTHROPIC)
         except Exception:
             pass
 
