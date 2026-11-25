@@ -5,7 +5,7 @@ director: it plans artwork and animation, analyzes your references, remembers yo
 projects, and drives drawing/animation tools, always with your approval before it changes
 anything on your computer.
 
-**Current build: Phase 1 (foundation).** See [docs/ROADMAP.md](docs/ROADMAP.md) for what's
+**Current build: Phase 2 (desktop agent) on top of the Phase 1 foundation.** See [docs/ROADMAP.md](docs/ROADMAP.md) for what's
 done and what's next, and [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md) for the
 reference analysis.
 
@@ -20,11 +20,23 @@ reference analysis.
 - Approval queue: APPROVE / REJECT, typed confirmation for destructive actions,
   emergency stop (button or Shift+Esc), results verified before being called a success.
 - Manual screenshot (read-only).
+- **Desktop Agent (Phase 2):** give it a task; it runs Claude's computer-use loop
+  (screenshot -> act -> verify with a fresh screenshot), with its own visible AI cursor,
+  a red "AI IN CONTROL" border and a floating control bar. Supervised mode (approve each
+  step) or Autonomous mode (allowed apps, step/time limits). Deleting, overwriting,
+  installing, purchases, logins and sending always ask first. STOP: button, Shift+Esc
+  anywhere, or push the mouse into the top-left corner; moving the mouse yourself pauses it.
+
+Tested automatically on Windows on every build: real cursor movement, screenshot + click,
+Unicode typing and shortcuts (checked via the clipboard), the Shift+Esc hotkey, overlays
+hidden from capture, plus the agent's approval/stop/pause/limit rules with a scripted Claude.
+**Not yet verified:** a full task driven by the live Claude API on a real PC. That needs
+your API key (first run on your machine, or the optional CI secret).
 
 ## Not built yet (honestly)
-Image generation, drawing workspace, animation timeline, FNF export, Adobe Animate and
-other app control, screen understanding and mouse/keyboard automation. These are
-Phases 2-6.
+Image generation, drawing workspace, animation timeline, FNF export, and dedicated
+Adobe Animate / Photoshop / Krita / Blender integrations. These are Phases 3-6. (The desktop
+agent can already operate any app by mouse and keyboard, but without app-specific scripting.)
 
 ## For users
 Run **AI Animator Setup.exe**, keep "Create a desktop shortcut" ticked, then open
