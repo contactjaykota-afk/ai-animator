@@ -114,12 +114,15 @@ class AICursor(QWidget):
         p.setFont(f)
         p.drawText(QRect(22, 18, 26, 16), Qt.AlignCenter, "AI")
 
+    def showEvent(self, e):
+        super().showEvent(e)
+        exclude_from_capture(self)
+
     def glide_to(self, x: int, y: int, ms: int = 280) -> None:
         target = physical_to_logical(x, y) - QPoint(2, 2)
         if not self.isVisible():
             self.move(target)
             self.show()
-            exclude_from_capture(self)
             self.arrived.emit()
             return
         self.anim.stop()
