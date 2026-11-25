@@ -21,6 +21,7 @@ class AppState(QObject):
     log_message = Signal(str, str)            # level, text
     navigate = Signal(str)                    # page id
     settings_changed = Signal()
+    screen_frame = Signal(object)             # QPixmap of the latest screen the AI saw
 
     def __init__(self, settings: Settings | None = None, secrets: SecretStore | None = None):
         super().__init__()

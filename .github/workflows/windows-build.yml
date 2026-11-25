@@ -32,6 +32,9 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
+      - name: Real desktop control check (mouse, keyboard, screenshot, STOP hotkey, overlay)
+        run: python tools/windows_desktop_check.py
+
       - name: Build folder version (for the installer)
         run: pyinstaller --noconfirm --clean packaging/ai_animator.spec
 
@@ -148,7 +151,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "v0.1.0-build.${{ github.run_number }}"
+          $tag = "v0.2.0-build.${{ github.run_number }}"
           gh release create $tag "release\AI Animator Setup.exe" "release\AI Animator.exe" "AI-Animator-Windows.zip" `
-            --title "AI Animator 0.1.0 (build ${{ github.run_number }})" --prerelease `
-            --notes "Phase 1 build. Every file here passed the automated Windows tests in run ${{ github.run_id }}. GitHub shows spaces as dots in file names; AI-Animator-Windows.zip contains 'AI Animator.exe' and 'AI Animator Setup.exe' with their exact names."
+            --title "AI Animator 0.2.0 (build ${{ github.run_number }})" --prerelease `
+            --notes "Phase 2 preview build. Every file here passed the automated Windows tests in run ${{ github.run_id }}. GitHub shows spaces as dots in file names; AI-Animator-Windows.zip contains 'AI Animator.exe' and 'AI Animator Setup.exe' with their exact names."

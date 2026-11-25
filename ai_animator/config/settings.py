@@ -61,6 +61,8 @@ class Settings:
     last_project: str = ""
     image_provider: str = "none"
     require_approval: bool = True  # cannot be turned off from the UI
+    agent_profile: dict = field(default_factory=dict)
+    agent_consent: bool = False
 
     @classmethod
     def path(cls) -> Path:

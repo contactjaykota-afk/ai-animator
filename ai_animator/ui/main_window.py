@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainW
 
 from ai_animator import APP_NAME, __version__
 from ai_animator.core.resources import resource_path
+from ai_animator.ui.pages.agent_page import AgentPage
 from ai_animator.ui.pages.assets_page import AssetsPage
 from ai_animator.ui.pages.chat_page import ChatPage
 from ai_animator.ui.pages.projects_page import ProjectsPage
@@ -16,7 +17,7 @@ from ai_animator.ui.pages.studio_pages import StudioPage
 from ai_animator.ui.panels.bottom_panel import BottomPanel
 from ai_animator.ui.panels.right_panel import RightPanel
 
-NAV = [("chat", "💬  Chat"), ("drawing", "✏️  Drawing Studio"), ("animation", "🎞️  Animation Studio"),
+NAV = [("chat", "💬  Chat"), ("agent", "🖱️  Desktop Agent"), ("drawing", "✏️  Drawing Studio"), ("animation", "🎞️  Animation Studio"),
        ("fnf", "🎤  FNF Studio"), ("projects", "📁  Projects"), ("assets", "🖼️  Asset Library"),
        ("settings", "⚙️  Settings")]
 
@@ -62,7 +63,7 @@ class MainWindow(QMainWindow):
             self.nav_buttons[key] = b
             sl.addWidget(b)
         sl.addStretch()
-        ver = QLabel(f"v{__version__} • Phase 1")
+        ver = QLabel(f"v{__version__} • Phase 2")
         ver.setObjectName("LogoSub")
         sl.addWidget(ver)
         outer.addWidget(side)
@@ -72,7 +73,7 @@ class MainWindow(QMainWindow):
         hsplit = QSplitter(Qt.Horizontal)
         self.stack = QStackedWidget()
         self.pages = {
-            "chat": ChatPage(state), "drawing": StudioPage("drawing"),
+            "chat": ChatPage(state), "agent": AgentPage(state), "drawing": StudioPage("drawing"),
             "animation": StudioPage("animation"), "fnf": StudioPage("fnf"),
             "projects": ProjectsPage(state), "assets": AssetsPage(state),
             "settings": SettingsPage(state),
@@ -107,6 +108,10 @@ class MainWindow(QMainWindow):
         self.nav_buttons[key].setChecked(True)
 
     def closeEvent(self, event) -> None:
+        agent = self.pages["agent"]
+        if agent.session and agent.session.running:
+            self.state.emergency_stop()
+            agent.session.runner.wait(5000)
         chat = self.pages["chat"]
         if chat.worker:
             chat.worker.cancel()

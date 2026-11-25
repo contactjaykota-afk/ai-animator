@@ -150,6 +150,14 @@ def self_test(argv: list[str]) -> int:
         return f"{img.width}x{img.height}"
     check("screenshot", screenshot)
 
+    def desktop_control():
+        if sys.platform != "win32":
+            return "warn: desktop control is Windows-only"
+        from ai_animator.desktop.input_backend import WindowsInput
+        pos = WindowsInput().cursor_position()   # read-only: never moves the mouse here
+        return f"input ready, cursor at {pos}"
+    check("desktop_control", desktop_control)
+
     if check_api:
         def api():
             from ai_animator.ai.claude_service import ClaudeService

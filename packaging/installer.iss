@@ -1,7 +1,7 @@
 ; Inno Setup script -> "AI Animator Setup.exe"
 ; Build: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss
 #define AppName "AI Animator"
-#define AppVersion "0.1.0"
+#define AppVersion "0.2.0"
 #define AppExe "AI Animator.exe"
 
 [Setup]

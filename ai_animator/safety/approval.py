@@ -28,6 +28,7 @@ class Risk(str, Enum):
 
 class Status(str, Enum):
     PENDING = "pending"
+    APPROVED = "approved"         # gate-only request: the caller performs the action itself
     REJECTED = "rejected"
     RUNNING = "running"
     SUCCEEDED = "succeeded"       # executed AND verified
@@ -50,7 +51,7 @@ class ActionRequest:
     application: str              # which app it will touch
     reason: str                   # why
     expected_result: str          # what should happen
-    execute: Callable[[], Any]
+    execute: Callable[[], Any] | None   # None = approval gate only (caller executes)
     risk: Risk = Risk.CHANGE
     verify: Callable[[Any], bool] | None = None
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:10])
@@ -84,6 +85,7 @@ class ApprovalQueue:
         self._items: dict[str, ActionRequest] = {}
         self._listeners: list[Callable[[ActionRequest], None]] = []
         self._lock = threading.RLock()
+        self._cond = threading.Condition(self._lock)
 
     def subscribe(self, fn: Callable[[ActionRequest], None]) -> None:
         self._listeners.append(fn)
@@ -117,6 +119,7 @@ class ApprovalQueue:
             req = self._items[req_id]
             if req.status == Status.PENDING:
                 req.status = Status.REJECTED
+            self._cond.notify_all()
         log.info("Rejected: %s", req.title)
         self._notify(req)
         return req
@@ -134,8 +137,15 @@ class ApprovalQueue:
                 req.status, req.error = Status.CANCELLED, str(exc)
                 self._notify(req)
                 return req
-            req.status = Status.RUNNING
+            if req.execute is None:
+                req.status = Status.APPROVED
+                self._cond.notify_all()
+            else:
+                req.status = Status.RUNNING
         self._notify(req)
+        if req.status == Status.APPROVED:
+            log.info("Approved: %s", req.title)
+            return req
         log.info("Approved, running: %s", req.title)
         try:
             req.result = req.execute()
@@ -166,4 +176,19 @@ class ApprovalQueue:
                     req.status, req.error = Status.CANCELLED, reason
                     n += 1
                     self._notify(req)
+            self._cond.notify_all()
         return n
+
+    def wait_for_decision(self, req_id: str, timeout: float | None = None,
+                          abort: Callable[[], bool] = lambda: False) -> Status:
+        """Block a worker thread until the user decides (or abort() becomes true)."""
+        import time
+        deadline = None if timeout is None else time.monotonic() + timeout
+        with self._cond:
+            while self._items[req_id].status == Status.PENDING:
+                if abort():
+                    break
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                self._cond.wait(0.1)
+            return self._items[req_id].status

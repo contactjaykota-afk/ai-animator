@@ -49,5 +49,10 @@ QFrame#ErrorBubble {{ background: #2a1519; border: 1px solid #6b2a35; border-rad
 QCheckBox::indicator {{ width: 14px; height: 14px; border: 1px solid #55555f; border-radius: 3px;
     background: #1a1a21; }}
 QCheckBox::indicator:checked {{ background: {ACCENT}; border: 1px solid {ACCENT}; }}
+QRadioButton::indicator {{ width: 13px; height: 13px; border: 1px solid #55555f; border-radius: 7px;
+    background: #1a1a21; }}
+QRadioButton::indicator:checked {{ background: {ACCENT}; border: 3px solid #1a1a21; outline: none; }}
+QPushButton#Primary:disabled, QPushButton#Reject:disabled, QPushButton#Approve:disabled {{
+    background: #1c1c22; border: 1px solid #2a2a32; color: #5d5d68; }}
 QToolTip {{ background: #24242e; color: #eee; border: 1px solid #3a3a46; }}
 """

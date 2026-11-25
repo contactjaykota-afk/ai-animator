@@ -104,6 +104,9 @@ class ClaudeService:
         self._factory = client_factory or (lambda key: anthropic.Anthropic(api_key=key) if key
                                            else anthropic.Anthropic())
 
+    def make_client(self):
+        return self._factory(self.secrets.get_api_key())
+
     def has_key(self) -> bool:
         return bool(self.secrets.get_api_key())
 

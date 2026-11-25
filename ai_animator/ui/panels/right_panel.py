@@ -103,6 +103,14 @@ class RightPanel(QFrame):
         lay.addWidget(scroll, 1)
 
         state.action_updated.connect(self.on_action)
+        state.screen_frame.connect(self.show_frame)
+
+    def show_frame(self, pix) -> None:
+        self.preview.setPixmap(pix.scaled(self.preview.width() - 4, 200, Qt.KeepAspectRatio,
+                                          Qt.SmoothTransformation))
+        title = active_window_title()
+        if title:
+            self.app_label.setText(f"Current app: {title}")
 
     def capture(self) -> None:
         try:
