@@ -207,8 +207,10 @@ class DesktopAgent:
             return AgentResult("stopped", "Stopped by you. No further actions were taken.", self.steps, errors)
         except Exception as exc:
             from ai_animator.ai.claude_service import friendly_error
-            log.exception("Agent error")
-            return AgentResult("error", friendly_error(exc), self.steps, errors + [str(exc)])
+            reason = friendly_error(exc)
+            log.error("Agent stopped with an error: %s", reason, exc_info=True)
+            log.error("Technical details: %s: %s", type(exc).__name__, str(exc)[:600])
+            return AgentResult("error", reason, self.steps, errors + [f"{type(exc).__name__}: {exc}"])
 
     def _run_batch(self, uses: list[dict], errors: list[str]) -> tuple[list[dict], str]:
         results: list[dict] = []

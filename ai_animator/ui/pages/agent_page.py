@@ -153,6 +153,12 @@ class AgentPage(QWidget):
         task = self.task.toPlainText().strip()
         if not task or (self.session and self.session.running):
             return False
+        if not self.state.claude.has_key():
+            QMessageBox.warning(self, "API key needed",
+                                "The desktop agent needs your Anthropic API key.\n\n"
+                                "Open Settings, paste your key, press Save key, then Test connection.")
+            self.state.navigate.emit("settings")
+            return False
         if not skip_consent and not self.state.settings.agent_consent:
             box = QMessageBox(QMessageBox.Warning, "Desktop control", CONSENT,
                               QMessageBox.Ok | QMessageBox.Cancel, self)
@@ -215,7 +221,8 @@ class AgentPage(QWidget):
         self._set_running(False)
         labels = {"completed": "✔ Finished", "stopped": "■ Stopped", "limit": "⚠ Limit reached",
                   "refused": "✖ Declined", "error": "✖ Error"}
-        self.status.setText(f"{labels.get(result.status, result.status)} - {result.steps} actions")
+        self.status.setText(f"{labels.get(result.status, result.status)} - {result.steps} actions"
+                            + (f": {result.summary}" if result.status == "error" else ""))
         if result.summary:
             self.thoughts.appendPlainText("── Result ──\n" + result.summary)
         self.state.task_changed.emit(f"Desktop agent {result.status}", 100 if result.status == "completed" else 0)
@@ -224,6 +231,10 @@ class AgentPage(QWidget):
             w.showNormal()
             w.raise_()
             w.activateWindow()
+        if result.status == "error":
+            detail = result.errors[-1][:800] if result.errors else ""
+            QMessageBox.warning(self, "Desktop agent stopped",
+                                f"{result.summary}\n\nTechnical details (safe to share, contains no key):\n{detail}")
         if self.state.project:
             self.state.project.add_memory_note(
                 f"Desktop task ({result.status}, {result.steps} actions): "

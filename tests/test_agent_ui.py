@@ -29,7 +29,9 @@ def pump(app, cond, timeout=8):
     return False
 
 
-def setup(app, keyring_mem, turns, mode):
+def setup(app, keyring_mem, turns, mode, with_key=True):
+    if with_key:
+        keyring_mem.set_password("AI Animator", "anthropic_api_key", "sk-ant-test-key-0000")
     state = AppState(Settings.load(), SecretStore(keyring_mem))
     claude = ScriptedClaude(turns)
     state.claude._factory = lambda key: claude
@@ -100,3 +102,22 @@ def test_corner_stop_logic():
     assert resting.check_once() == ""                                 # already there at start: no stop
     w2 = MouseWatcher(lambda: (0, 0), lambda: (0, 0), lambda: hits.append("x"), lambda: None)
     assert w2.check_once() == ""                                      # the AI itself is at the corner
+
+
+def test_agent_refuses_to_start_without_key_and_reports_errors(app, keyring_mem, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    shown = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: shown.append(a[2]))
+    state, claude, backend, win, page = setup(app, keyring_mem, [], "supervised", with_key=False)
+    state.claude._factory = lambda key: claude
+    assert not page.start(skip_consent=True)                          # no key saved
+    assert "API key" in shown[-1]
+    keyring_mem.set_password("AI Animator", "anthropic_api_key", "sk-ant-test-key-0000")
+
+    class Boom:
+        beta = None                                                   # any API failure
+    state.claude._factory = lambda key: Boom()
+    assert page.start(skip_consent=True)
+    assert pump(app, lambda: "Error" in page.status.text(), timeout=8)
+    assert "Desktop agent stopped" not in shown[-1] and "Technical details" in shown[-1]
+    win.close()

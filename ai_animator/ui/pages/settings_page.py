@@ -163,6 +163,7 @@ class SettingsPage(QWidget):
         self._worker = CallWorker(self.state.claude.test_connection, self)
         self._worker.ok.connect(lambda model: self._test_done(f"✔ Connected. Served by {model}."))
         self._worker.failed.connect(lambda msg: self._test_done(f"✖ {msg}"))
+        self._worker.failed.connect(lambda msg: log.error("Connection test failed: %s", msg))
         self._worker.start()
 
     def _test_done(self, msg: str) -> None:
