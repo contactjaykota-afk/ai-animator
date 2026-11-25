@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 60
     env:
       AI_ANIMATOR_HEADLESS: "1"   # build machine has no real desktop: screenshot = warning
+      # Bare Windows PATH used whenever an .exe is run: proves no Python is needed.
+      MIN_PATH: 'C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Program Files\PowerShell\7' 
     steps:
       - uses: actions/checkout@v4
 
@@ -40,18 +42,14 @@ jobs:
           pyinstaller --noconfirm --distpath dist/portable --workpath build/portable packaging/ai_animator.spec
           if (!(Test-Path "dist/portable/AI Animator.exe")) { throw "portable exe missing" }
 
-      - name: Remove Python from this machine's PATH for all later steps
-        shell: pwsh
-        run: |
-          # Proves the .exe files do not need an installed Python.
-          $clean = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
-          "PATH=$clean" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Remove-Item env:PYTHONPATH -ErrorAction SilentlyContinue
-
       - name: Self-test both exes (no Python available)
         shell: pwsh
         run: |
-          if (Get-Command python -ErrorAction SilentlyContinue) { throw "python still on PATH" }
+          $env:PATH = $env:MIN_PATH
+          foreach ($v in "PYTHONPATH","PYTHONHOME","pythonLocation","Python_ROOT_DIR","Python2_ROOT_DIR","Python3_ROOT_DIR") { Remove-Item "env:$v" -ErrorAction SilentlyContinue }
+          $found = Get-Command python, python3, py -ErrorAction SilentlyContinue
+          if ($found) { $found | Format-Table Source; throw "a Python is still reachable" }
+          Write-Host "Confirmed: no Python reachable."
           foreach ($exe in @("dist\AI Animator\AI Animator.exe", "dist\portable\AI Animator.exe")) {
             $rep = Join-Path $env:RUNNER_TEMP ("st_" + [guid]::NewGuid() + ".json")
             $p = Start-Process -FilePath $exe -ArgumentList "--self-test","--report","`"$rep`"" -Wait -PassThru
@@ -64,6 +62,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
+          $env:PATH = $env:MIN_PATH
           if (-not $env:ANTHROPIC_API_KEY) { Write-Host "No secret set - skipped (Option A)."; exit 0 }
           $rep = Join-Path $env:RUNNER_TEMP "st_api.json"
           $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -ArgumentList "--self-test","--check-api","--report","`"$rep`"" -Wait -PassThru
@@ -73,6 +72,7 @@ jobs:
       - name: Launch the real app window and keep it running 20s
         shell: pwsh
         run: |
+          $env:PATH = $env:MIN_PATH
           $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { throw "app exited early with code $($p.ExitCode)" }
@@ -89,6 +89,7 @@ jobs:
       - name: Install, launch, self-test, uninstall
         shell: pwsh
         run: |
+          $env:PATH = $env:MIN_PATH
           $setup = "dist\AI Animator Setup.exe"
           $p = Start-Process $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/TASKS=desktopicon" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
