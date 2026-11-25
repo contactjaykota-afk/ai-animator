@@ -134,6 +134,8 @@ jobs:
           Copy-Item "dist\portable\AI Animator.exe" "release\AI Animator.exe"
           Copy-Item "dist\AI Animator Setup.exe" "release\AI Animator Setup.exe"
           Get-ChildItem release | Format-Table Name, Length
+          # GitHub turns spaces in release file names into dots; the zip keeps the exact names.
+          Compress-Archive -Path "release\AI Animator.exe","release\AI Animator Setup.exe" -DestinationPath "AI-Animator-Windows.zip"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -147,6 +149,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "v0.1.0-build.${{ github.run_number }}"
-          gh release create $tag "release\AI Animator.exe" "release\AI Animator Setup.exe" `
+          gh release create $tag "release\AI Animator Setup.exe" "release\AI Animator.exe" "AI-Animator-Windows.zip" `
             --title "AI Animator 0.1.0 (build ${{ github.run_number }})" --prerelease `
-            --notes "Phase 1 build. Every file here passed the automated Windows tests in run ${{ github.run_id }}."
+            --notes "Phase 1 build. Every file here passed the automated Windows tests in run ${{ github.run_id }}. GitHub shows spaces as dots in file names; AI-Animator-Windows.zip contains 'AI Animator.exe' and 'AI Animator Setup.exe' with their exact names."
