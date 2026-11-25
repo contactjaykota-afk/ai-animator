@@ -56,8 +56,29 @@ def find_window(substr: str, timeout=15):
 
 
 def clipboard() -> str:
-    return subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
-                          capture_output=True, text=True, timeout=20).stdout.strip()
+    """Read Unicode text straight from the Windows clipboard (no console encoding involved)."""
+    k32 = ctypes.windll.kernel32
+    user32.GetClipboardData.restype = wintypes.HANDLE
+    k32.GlobalLock.restype = ctypes.c_void_p
+    k32.GlobalLock.argtypes = (wintypes.HGLOBAL,)
+    k32.GlobalUnlock.argtypes = (wintypes.HGLOBAL,)
+    for _ in range(20):
+        if user32.OpenClipboard(None):
+            break
+        time.sleep(0.1)
+    else:
+        raise RuntimeError("could not open clipboard")
+    try:
+        handle = user32.GetClipboardData(13)  # CF_UNICODETEXT
+        if not handle:
+            return ""
+        ptr = k32.GlobalLock(handle)
+        try:
+            return ctypes.wstring_at(ptr)
+        finally:
+            k32.GlobalUnlock(handle)
+    finally:
+        user32.CloseClipboard()
 
 
 def main() -> int:
