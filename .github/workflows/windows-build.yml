@@ -1,0 +1,47 @@
+name: Windows build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Unit + UI tests
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen
+      - name: Build AI Animator.exe
+        run: pyinstaller --noconfirm --clean packaging/ai_animator.spec
+      - name: Self-test the packaged exe (no Python on PATH)
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\Windows\System32;C:\Windows"
+          $p = Start-Process -FilePath "dist\AI Animator\AI Animator.exe" -ArgumentList "--self-test" -Wait -PassThru
+          Get-Content "$env:APPDATA\AI Animator\self_test_report.json" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Build installer
+        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\installer.iss'
+        shell: pwsh
+      - name: Silent install + self-test the installed app + uninstall
+        shell: pwsh
+        run: |
+          Start-Process "dist\AI Animator Setup.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/CURRENTUSER","/TASKS=desktopicon" -Wait
+          $exe = "$env:LOCALAPPDATA\Programs\AI Animator\AI Animator.exe"
+          if (!(Test-Path $exe)) { Write-Error "not installed at $exe"; exit 1 }
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+          Start-Process "$env:LOCALAPPDATA\Programs\AI Animator\unins000.exe" -ArgumentList "/VERYSILENT" -Wait
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-Animator-Windows
+          path: |
+            dist/AI Animator Setup.exe
+            dist/AI Animator/

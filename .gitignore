@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec.bak
+.venv/
+# Third-party reference artwork: kept locally for study only, never redistributed
+style_references/
