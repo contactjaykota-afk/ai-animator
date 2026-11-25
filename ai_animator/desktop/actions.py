@@ -90,6 +90,7 @@ class ActionExecutor:
                 self._point(*pt)
             self.checkpoint()
             b.click(button, count, parse_combo(inp["text"]) if inp.get("text") else None)
+            time.sleep(0.15)  # give the clicked app time to take keyboard focus
         elif name == "mouse_move":
             self._point(*_coord(inp, "coordinate", frame))
         elif name == "left_click_drag":
