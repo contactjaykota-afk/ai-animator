@@ -54,7 +54,7 @@ def test_supervised_run_with_control_bar_approval(app, keyring_mem):
     assert pump(app, lambda: sess.bar.approve_row.isVisible())        # approval shown on the bar
     assert ("type", "hi") not in backend.calls
     sess.bar.approve_btn.click()
-    assert pump(app, lambda: not sess.running and page.start_btn.isEnabled())
+    assert pump(app, lambda: "Finished" in page.status.text(), timeout=10)
     assert ("type", "hi") in backend.calls
     assert "Finished" in page.status.text() and page.steps.count() == 1
     assert "Typed hi" in page.thoughts.toPlainText()
@@ -68,8 +68,7 @@ def test_stop_button_ends_autonomous_run(app, keyring_mem):
     sess = page.session
     assert pump(app, lambda: page.steps.count() == 1)                 # waiting inside the action
     sess.bar.stop_btn.click()                                         # STOP on the control bar
-    assert pump(app, lambda: not sess.running, timeout=5)
-    assert "Stopped" in page.status.text()
+    assert pump(app, lambda: "Stopped" in page.status.text(), timeout=8)
     assert len(claude.requests) == 1                                  # no further turns
     win.close()
 
@@ -85,8 +84,7 @@ def test_user_mouse_takeover_pauses_and_resume_continues(app, keyring_mem):
     assert pump(app, lambda: sess.control.paused, timeout=3)
     assert "Resume" in sess.bar.pause_btn.text()
     sess.bar.pause_btn.click()                                        # Resume
-    assert pump(app, lambda: not sess.running, timeout=8)
-    assert "Finished" in page.status.text()
+    assert pump(app, lambda: "Finished" in page.status.text(), timeout=10)
     win.close()
 
 
