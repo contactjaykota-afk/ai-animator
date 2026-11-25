@@ -35,6 +35,14 @@ jobs:
       - name: Real desktop control check (mouse, keyboard, screenshot, STOP hotkey, overlay)
         run: python tools/windows_desktop_check.py
 
+      - name: Upload desktop-check screenshots (only if the check failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-check-screenshots
+          path: debug_screenshots/
+          if-no-files-found: ignore
+
       - name: Build folder version (for the installer)
         run: pyinstaller --noconfirm --clean packaging/ai_animator.spec
 

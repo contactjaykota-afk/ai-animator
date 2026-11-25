@@ -6,3 +6,4 @@ dist/
 .venv/
 # Third-party reference artwork: kept locally for study only, never redistributed
 style_references/
+debug_screenshots/

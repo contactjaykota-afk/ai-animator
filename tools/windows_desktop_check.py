@@ -82,6 +82,36 @@ def clipboard() -> str:
         user32.CloseClipboard()
 
 
+def editor_text(hwnd) -> str:
+    """Text inside Notepad's editor control, read directly (classic and new Notepad)."""
+    texts = []
+    proto = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def cb(child, _):
+        cls = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(child, cls, 64)
+        if cls.value in ("Edit", "RichEditD2DPT", "RichEdit50W"):
+            res = ctypes.c_size_t()
+            user32.SendMessageTimeoutW(child, 0x000E, 0, 0, 0x2, 2000, ctypes.byref(res))  # WM_GETTEXTLENGTH
+            buf = ctypes.create_unicode_buffer(res.value + 1)
+            user32.SendMessageTimeoutW(child, 0x000D, res.value + 1, buf, 0x2, 2000,      # WM_GETTEXT
+                                       ctypes.byref(res))
+            texts.append(buf.value)
+        return True
+    user32.EnumChildWindows(hwnd, proto(cb), 0)
+    return max(texts, key=len) if texts else ""
+
+
+def save_debug_screenshot(name: str) -> None:
+    out = Path(__file__).resolve().parent.parent / "debug_screenshots"
+    out.mkdir(exist_ok=True)
+    try:
+        capture_frame().image.save(out / f"{name}.png")
+        print(f"       saved debug screenshot {name}.png", flush=True)
+    except Exception as exc:
+        print(f"       (could not save screenshot: {exc})", flush=True)
+
+
 def main() -> int:
     inp = WindowsInput()
 
@@ -117,20 +147,43 @@ def main() -> int:
         ok("screenshot_and_click", f"frame {f.image.size}, scale {f.scale:.3f}, clicked ({rx},{ry}), "
                                    f"focused after {attempt} click(s)")
 
-        # 3. typing + shortcuts, verified through the clipboard
+        # 3. typing, verified by reading Notepad's text directly; retried like the agent's verify loop
         text = "AI Animator input test 123 - äöü ✓"
-        ex.run("type", {"text": text})
-        time.sleep(0.5)
+        typed = ""
+        for attempt in range(1, 4):
+            if user32.GetForegroundWindow() != hwnd:
+                ex.run("left_click", {"coordinate": [fx, fy]})
+                time.sleep(0.6)
+            ex.run("type", {"text": text})
+            time.sleep(0.8)
+            typed = editor_text(hwnd)
+            print(f"       attempt {attempt}: editor contains {typed!r}", flush=True)
+            if text in typed:
+                break
+            save_debug_screenshot(f"typing_attempt_{attempt}")
+            ex.run("key", {"text": "ctrl+a"})
+            ex.run("key", {"text": "Delete"})
+            time.sleep(1.0)
+        assert text in typed, f"editor text was {typed!r}"
+        ok("typing", f"verified in editor after {attempt} attempt(s)")
+
+        # shortcuts: select all + copy, verified via the clipboard
+        if typed != text:  # clean leftovers from earlier attempts
+            ex.run("key", {"text": "ctrl+a"})
+            ex.run("type", {"text": text})
+            time.sleep(0.5)
         got = ""
         for _ in range(10):
             ex.run("key", {"text": "ctrl+a"})
             ex.run("key", {"text": "ctrl+c"})
-            time.sleep(0.3)
+            time.sleep(0.4)
             got = clipboard()
             if got == text:
                 break
+        if got != text:
+            save_debug_screenshot("shortcuts")
         assert got == text, f"clipboard was {got!r}"
-        ok("type_and_shortcuts", repr(got))
+        ok("shortcuts", "ctrl+a / ctrl+c verified via clipboard")
     finally:
         proc.kill()
 
