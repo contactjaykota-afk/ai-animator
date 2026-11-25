@@ -18,6 +18,7 @@ from ctypes import wintypes
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from ai_animator.desktop.actions import ActionExecutor  # noqa: E402
 from ai_animator.desktop.frames import capture_frame  # noqa: E402
